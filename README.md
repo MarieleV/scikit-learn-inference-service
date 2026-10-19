@@ -15,7 +15,7 @@
 
 <br>
 
-<h2>🤖 Sobre o Projeto</h2>
+<h2>1.0 Sobre o Projeto</h2>
 <p>
   Este projeto demonstra a produtização (<i>deploy</i> local) de um modelo de Machine Learning, servindo como uma ponte arquitetural entre a Engenharia de Dados e a Engenharia de Software.
 </p>
@@ -25,7 +25,7 @@
 
 <br>
 
-<h2>🚀 Principais Funcionalidades</h2>
+<h2>2.0 Principais Funcionalidades</h2>
 
 <table>
   <tr>
