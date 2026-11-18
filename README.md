@@ -1,190 +1,222 @@
 <div align="center">
 
-# 🧠 ML Inference Service
+# Serviço de Inferência de ML
 
-**Microsserviço de detecção de anomalias de consumo com aprendizado semi-supervisionado, servido via FastAPI.**
+**Detecta anomalias de consumo de água (vazamentos e fraudes) com um modelo semi-supervisionado<br/>treinado offline e servido por uma API REST com validação de contrato, versionamento e testes.**
 
-[![CI](https://github.com/MarieleV/scikit-learn-inference-service/actions/workflows/ci.yml/badge.svg)](https://github.com/MarieleV/scikit-learn-inference-service/actions/workflows/ci.yml)
-![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
-![scikit-learn](https://img.shields.io/badge/scikit--learn-F7931E?logo=scikit-learn&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+<a href="#como-executar"><img src="https://img.shields.io/badge/Executar-Docker_ou_local-1a7f37?style=for-the-badge&logo=docker&logoColor=white" alt="Como executar" /></a>
+<a href="#resultados-do-modelo"><img src="https://img.shields.io/badge/Resultados-métricas_e_experimento-0969da?style=for-the-badge&logo=scikitlearn&logoColor=white" alt="Resultados do modelo" /></a>
+<a href="#decisões-técnicas"><img src="https://img.shields.io/badge/Decisões-técnicas-59636e?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Decisões técnicas" /></a>
 
-[Sobre](#-sobre-o-projeto) •
-[Arquitetura](#-arquitetura) •
-[Como executar](#-como-executar) •
-[API](#-endpoints) •
-[Resultados](#-resultados-do-modelo) •
-[Decisões técnicas](#-decisões-técnicas)
+<a href="https://github.com/MarieleV/scikit-learn-inference-service/actions/workflows/ci.yml"><img src="https://github.com/MarieleV/scikit-learn-inference-service/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
+<img src="https://img.shields.io/badge/testes-23_(pytest)-59636e" alt="Testes" />
+<img src="https://img.shields.io/badge/python-3.12_·_3.13-59636e" alt="Python" />
+<a href="./LICENSE"><img src="https://img.shields.io/badge/licença-MIT-59636e" alt="Licença MIT" /></a>
+
+<sub>Projeto de portfólio · Machine Learning em produção · Engenharia de Software</sub>
 
 </div>
 
 ---
 
-## 📌 Sobre o projeto
+## Visão geral
 
-Empresas de saneamento precisam identificar **vazamentos e fraudes** a partir de leituras de hidrômetros. O problema é que **rotular** uma leitura como anômala exige inspeção em campo — cara e lenta — então só uma pequena fração dos dados tem rótulo.
+Empresas de saneamento precisam encontrar **vazamentos e fraudes** nas leituras de hidrômetros. O obstáculo é o rótulo: confirmar que uma leitura é anômala exige inspeção em campo, que é cara e lenta. Por isso, só uma pequena parte dos dados chega a ser rotulada.
 
-Este projeto simula esse cenário e mostra o ciclo completo de levar um modelo para produção:
-
-- 🧪 **Treinamento offline** com `SelfTrainingClassifier` (semi-supervisionado), que aproveita os dados **sem rótulo** via pseudo-rotulagem.
-- 📊 **Avaliação honesta**: comparação contra um baseline supervisionado, com métricas adequadas a dados **desbalanceados** (F1, recall, ROC-AUC).
-- 🚀 **Serviço de inferência** em FastAPI com validação de contrato, predição individual e em lote, health check e versionamento do modelo.
-- ✅ **Engenharia**: testes automatizados, lint, Docker multi-stage e CI no GitHub Actions.
-
-> [!NOTE]
-> Os dados são **sintéticos** (`make_classification`, ~15% de anomalias). O foco é a arquitetura e as boas práticas de ML em produção, não o desempenho em um dataset real.
-
----
-
-## 🏗 Arquitetura
+Este projeto simula esse cenário e cobre o ciclo completo, do treino ao serviço em produção:
 
 ```mermaid
 flowchart LR
-    subgraph T["🧪 Treinamento offline — training/train.py"]
-        D[Dados sintéticos<br/>desbalanceados] --> S[Split estratificado<br/>treino / teste]
-        S --> H[Oculta 80% dos<br/>rótulos de treino]
-        H --> B[Baseline<br/>RandomForest]
-        H --> ST[SelfTraining<br/>+ RandomForest]
-        B --> E[Avaliação no<br/>conjunto de teste]
-        ST --> E
-    end
-
-    E --> A[("📦 models/<br/>model.joblib<br/>metadata.json")]
-
-    subgraph API["🚀 Serviço de inferência — app/"]
-        L[lifespan: carrega e<br/>valida o modelo] --> R{Rotas}
-        R --> P[POST /predict]
-        R --> PB[POST /predict/batch]
-        R --> HC[GET /health]
-        R --> MI[GET /model/info]
-    end
-
-    A --> L
-    C((Cliente)) -- JSON --> R
+    A["Gerar dados<br/>15% de anomalias"] --> B["Ocultar rótulos<br/>80% sem rótulo"]
+    B --> C["Treinar<br/>self-training × baseline"]
+    C --> D["Avaliar e versionar<br/>métricas + metadados"]
+    D --> E["Servir<br/>API REST com FastAPI"]
 ```
 
+| | |
+|---|---|
+| **Semi-supervisionado** | `SelfTrainingClassifier` com RandomForest aproveita os dados sem rótulo por pseudo-rotulagem |
+| **Avaliação honesta** | Comparação com um baseline supervisionado e métricas para dados desbalanceados (F1, recall, ROC-AUC) |
+| **4 endpoints REST** | Predição individual e em lote, health check e metadados do modelo, com OpenAPI |
+| **23 testes** | API, contrato entre modelo e API, e pipeline de treino (pytest) |
+| **~8,6 ms por predição** | Latência p50 em uma linha; 1.000 leituras em lote em ~15 ms |
+
+> [!NOTE]
+> Os dados são **sintéticos** (`make_classification`). O foco é a arquitetura e as boas práticas de ML em produção, não o desempenho em um dataset real.
+
+---
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    subgraph T["Treinamento offline · training/"]
+        D["Dados sintéticos"] --> S["Split estratificado<br/>treino / teste"]
+        S --> B["Baseline<br/>RandomForest"]
+        S --> ST["SelfTraining<br/>+ RandomForest"]
+        B & ST --> E["Avaliação no<br/>conjunto de teste"]
+    end
+    E --> A[("models/<br/>model.joblib<br/>metadata.json")]
+    subgraph API["Serviço de inferência · app/"]
+        L["lifespan<br/>carrega e valida"] --> R["Rotas FastAPI"]
+    end
+    A --> L
+    C(["Cliente"]) -- "JSON" --> R
+```
+
+1. **Treino.** `training/train.py` gera dados desbalanceados, separa treino e teste de forma estratificada e oculta 80% dos rótulos de treino.
+2. **Comparação.** O mesmo conjunto treina um baseline (só dados rotulados) e o self-training; os dois são avaliados no conjunto de teste.
+3. **Artefatos.** O modelo vai para `model.joblib`; versão, features, versão do scikit-learn e métricas vão para `metadata.json`.
+4. **Carga.** No startup, a API carrega o modelo **uma única vez** e confere se as features dele batem com o schema da API.
+5. **Inferência.** O Pydantic valida o payload, o modelo calcula a probabilidade e o limiar configurável define a classe. A resposta informa a versão do modelo usada.
+
 <details>
-<summary><b>Fluxo de uma requisição</b></summary>
+<summary><b>Sequência de uma predição</b></summary>
+<br/>
 
 ```mermaid
 sequenceDiagram
-    participant C as Cliente
+    actor C as Cliente
     participant F as FastAPI
     participant V as Pydantic
     participant M as ModelService
+
     C->>F: POST /predict {volume_consumo, ...}
-    F->>V: valida tipos, campos obrigatórios e extras
+    F->>V: Valida tipos, campos obrigatórios e extras
     alt payload inválido
-        V-->>C: 422 Unprocessable Content
+        V-->>C: 422
     end
     F->>M: predict([leitura])
     alt modelo não carregado
-        M-->>C: 503 Service Unavailable
+        M-->>C: 503
     end
-    M->>M: monta array na ordem das features do treino
-    M->>M: predict_proba → aplica limiar
+    M->>M: Monta o array na ordem das features do treino
+    M->>M: predict_proba e aplica o limiar
     M-->>C: 200 {classe, rotulo, probabilidade_anomalia, versao_modelo}
 ```
 
 </details>
 
-### Estrutura do repositório
-
-```
-.
-├── app/                     # Serviço de inferência
-│   ├── main.py              # Application factory, rotas, lifespan, middleware
-│   ├── model.py             # ModelService: carga, validação do contrato e inferência
-│   ├── schemas.py           # Contratos de entrada/saída (Pydantic)
-│   └── config.py            # Configuração por variáveis de ambiente
-├── training/
-│   ├── train.py             # Pipeline: dados → treino → avaliação → artefatos
-│   └── experiment.py        # Experimento: self-training vs. baseline
-├── tests/                   # Testes da API e do pipeline (pytest)
-├── models/                  # Artefatos gerados (não versionados)
-├── .github/workflows/ci.yml # Lint + testes + build e smoke test do Docker
-├── Dockerfile               # Multi-stage: treina na build, imagem final enxuta
-└── pyproject.toml           # Configuração do ruff e pytest
-```
-
 ---
 
-## ⚡ Como executar
+## Resultados do modelo
 
-### Com Docker (recomendado)
+Conjunto de teste com 1.000 amostras (15% de anomalias), treino com **80% dos rótulos ocultos**:
 
-```bash
-git clone https://github.com/MarieleV/scikit-learn-inference-service.git
-cd scikit-learn-inference-service
+| Modelo | Accuracy | Precision | Recall | F1 | ROC-AUC |
+|---|---|---|---|---|---|
+| Baseline (só dados rotulados) | 0.942 | 0.796 | **0.847** | 0.821 | **0.950** |
+| **Self-training** (servido) | **0.944** | **0.814** | 0.834 | **0.824** | 0.944 |
 
-docker build -t ml-inference-service .
-docker run -p 8000:8000 ml-inference-service
-```
-
-O modelo é treinado durante o build, então a imagem já sobe pronta para uso.
-
-### Localmente
+As métricas ficam em `models/metadata.json` e são expostas em `GET /model/info`.
 
 <details open>
-<summary><b>Passo a passo</b></summary>
+<summary><b>O self-training realmente ajuda?</b></summary>
+<br/>
 
-```bash
-# 1. Ambiente virtual
-python -m venv .venv
-source .venv/bin/activate        # Linux/macOS
-.\.venv\Scripts\Activate.ps1     # Windows (PowerShell)
+`python -m training.experiment` varia a fração de rótulos ocultos e calcula a média de 3 seeds:
 
-# 2. Dependências
-pip install -r requirements-dev.txt
+| % sem rótulo | F1 baseline | F1 self-training | ROC-AUC baseline | ROC-AUC self-training |
+|---|---|---|---|---|
+| 50% | 0.849 | 0.845 | 0.960 | 0.956 |
+| 80% | 0.821 | 0.806 | 0.950 | 0.949 |
+| 90% | 0.807 | 0.788 | 0.943 | 0.934 |
+| 95% | 0.747 | 0.757 | 0.936 | 0.925 |
+| 98% | 0.695 | 0.623 | 0.922 | 0.854 |
 
-# 3. Treinar o modelo (gera models/model.joblib e models/metadata.json)
-python -m training.train
+**Conclusão:** neste dataset, o self-training **empata** com o baseline e **piora** quando os rótulos são extremamente escassos (98%). Isso é coerente com a teoria:
 
-# 4. Subir a API
-uvicorn app.main:app --reload
-```
+- Métodos semi-supervisionados dependem da *hipótese de cluster* (pontos próximos tendem a ter a mesma classe), e o `make_classification` não garante essa estrutura.
+- Com pouquíssimos rótulos, o modelo inicial erra mais, e os **pseudo-rótulos errados se propagam** (*confirmation bias*), principalmente na classe minoritária.
 
 </details>
 
-Acesse a documentação interativa (Swagger) em **http://127.0.0.1:8000/docs**.
-
-### Testes e qualidade
-
-```bash
-pytest -v                          # 23 testes: API, contrato e pipeline de treino
-ruff check . && ruff format --check .
-```
-
-### Configuração
-
-| Variável | Padrão | Descrição |
-|---|---|---|
-| `MODEL_DIR` | `models` | Diretório com `model.joblib` e `metadata.json` |
-| `ANOMALY_THRESHOLD` | `0.5` | Probabilidade mínima para classificar como anomalia |
-| `MAX_BATCH_SIZE` | `1000` | Máximo de leituras por requisição em lote |
-| `LOG_LEVEL` | `INFO` | Nível de log |
+> [!TIP]
+> Em um cenário real, o pipeline treinaria os dois modelos e só promoveria o self-training se ele superasse o baseline em um conjunto de validação. Por isso as duas métricas ficam registradas nos metadados.
 
 ---
 
-## 🔌 Endpoints
+## Decisões técnicas
 
-| Método | Rota | Descrição |
+As escolhas abaixo são as que mais influenciaram o serviço. Cada uma tem uma alternativa mais simples que foi descartada de propósito.
+
+<details open>
+<summary><b>Treino separado da inferência, com metadados junto do modelo</b></summary>
+
+- **Decisão:** o treino roda em um script próprio e gera dois artefatos: o modelo e um `metadata.json` com versão, features, versão do scikit-learn e métricas. A API só carrega.
+- **Por quê:** a API sobe rápido, não gasta CPU treinando e sabe exatamente qual modelo respondeu cada requisição (`versao_modelo` vai em toda resposta).
+- **Consequência assumida:** os artefatos não são versionados no Git. Eles são reproduzíveis (`random_state` fixo) e gerados no build do Docker e no CI.
+
+</details>
+
+<details>
+<summary><b>Validação do contrato entre modelo e API no startup</b></summary>
+
+- **Decisão:** ao carregar, a API compara as features registradas no modelo com os campos do schema Pydantic e recusa o modelo se forem diferentes. O array de entrada é montado na ordem gravada no treino.
+- **Por quê:** o scikit-learn recebe um array sem nomes de coluna. Uma feature trocada de lugar geraria previsões erradas **sem nenhum erro**. É melhor o serviço ficar indisponível (503) do que responder errado.
+
+</details>
+
+<details>
+<summary><b>Rotas <code>def</code> em vez de <code>async def</code></b></summary>
+
+- **Decisão:** as rotas de predição são funções síncronas.
+- **Por quê:** a inferência é CPU-bound. Dentro de `async def`, ela bloquearia o event loop e travaria todas as outras requisições; com `def`, o FastAPI a executa em um threadpool.
+
+</details>
+
+<details>
+<summary><b><code>n_jobs=1</code> no modelo servido</b></summary>
+
+- **Decisão:** a RandomForest treina com todos os núcleos (`n_jobs=-1`), mas é salva com `n_jobs=1`.
+- **Por quê:** em uma predição de uma linha, o custo de coordenar threads supera o ganho. Medido: **p50 caiu de ~29 ms para ~8,6 ms** (3,4× mais rápido). O paralelismo fica a cargo da API, que atende várias requisições ao mesmo tempo.
+
+</details>
+
+<details>
+<summary><b>Probabilidade e limiar configurável, em vez de só a classe</b></summary>
+
+- **Decisão:** a resposta traz `probabilidade_anomalia`, e a classe sai de um limiar definido por `ANOMALY_THRESHOLD`.
+- **Por quê:** em detecção de anomalias, deixar passar um vazamento custa diferente de inspecionar um alarme falso. O limiar pode ser ajustado sem retreinar o modelo.
+
+</details>
+
+<details>
+<summary><b>Endpoint em lote vetorizado</b></summary>
+
+- **Decisão:** `/predict/batch` faz uma única chamada a `predict_proba` para todas as leituras, com limite configurável (`MAX_BATCH_SIZE`, resposta 413 acima dele).
+- **Por quê:** 1.000 leituras em lote levam ~15 ms; como 1.000 requisições individuais, só a inferência somaria ~8,6 s.
+
+</details>
+
+<details>
+<summary><b>Dados desbalanceados tratados no modelo e nas métricas</b></summary>
+
+- **Decisão:** `class_weight="balanced"`, split estratificado e métricas focadas na classe positiva.
+- **Por quê:** com 15% de anomalias, um modelo que responde sempre "normal" tem 85% de acurácia e não serve para nada. F1, recall e ROC-AUC mostram se as anomalias estão sendo encontradas.
+
+</details>
+
+---
+
+## Endpoints
+
+| Método | Rota | O que faz |
 |---|---|---|
 | `POST` | `/predict` | Classifica uma leitura |
 | `POST` | `/predict/batch` | Classifica várias leituras em uma única chamada ao modelo |
-| `GET` | `/health` | Health check (`503` se o modelo não estiver carregado) |
+| `GET` | `/health` | Health check; responde `503` se o modelo não estiver carregado |
 | `GET` | `/model/info` | Versão, configuração de treino e métricas do modelo |
 
-### Exemplo: predição individual
+**Requisição:**
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict \
   -H "Content-Type: application/json" \
   -d '{"volume_consumo": 1.25, "variacao_pressao": -0.40, "vazao_noturna": 2.10, "fator_sazonal": 0.30}'
 ```
+
+**Resposta:**
 
 ```json
 {
@@ -196,7 +228,8 @@ curl -X POST http://127.0.0.1:8000/predict \
 ```
 
 <details>
-<summary><b>Exemplo: predição em lote</b></summary>
+<summary><b>Predição em lote</b></summary>
+<br/>
 
 ```bash
 curl -X POST http://127.0.0.1:8000/predict/batch \
@@ -222,13 +255,14 @@ curl -X POST http://127.0.0.1:8000/predict/batch \
 </details>
 
 <details>
-<summary><b>Tratamento de erros</b></summary>
+<summary><b>Respostas de erro</b></summary>
+<br/>
 
 | Status | Quando |
 |---|---|
 | `422` | Tipo inválido, campo ausente, campo não previsto ou valor `NaN`/`Infinity` |
 | `413` | Lote maior que `MAX_BATCH_SIZE` |
-| `503` | Modelo não carregado (artefato ausente ou incompatível) |
+| `503` | Modelo não carregado (artefato ausente ou incompatível com a API) |
 
 </details>
 
@@ -236,69 +270,125 @@ Toda resposta inclui o header `X-Process-Time-Ms` com o tempo de processamento.
 
 ---
 
-## 📊 Resultados do modelo
+## Qualidade e entrega contínua
 
-Conjunto de teste com 1.000 amostras (15% de anomalias), treino com **80% dos rótulos ocultos**:
+```mermaid
+flowchart LR
+    PR["Pull request<br/>develop → main"] --> L["Lint<br/>ruff check + format"]
+    PR --> T["Testes<br/>pytest · Python 3.12 e 3.13"]
+    L & T --> B["Build da imagem Docker<br/>treina o modelo no build"]
+    B --> S["Smoke test<br/>/health + /predict no contêiner"]
+```
 
-| Modelo | Accuracy | Precision | Recall | F1 | ROC-AUC |
-|---|---|---|---|---|---|
-| Baseline (só dados rotulados) | 0.942 | 0.796 | **0.847** | 0.821 | **0.950** |
-| **Self-training** (servido) | **0.944** | **0.814** | 0.834 | **0.824** | 0.944 |
-
-As métricas ficam salvas em `models/metadata.json` e expostas em `GET /model/info`.
-
-### O self-training realmente ajuda?
-
-Para responder com mais rigor, `python -m training.experiment` varia a fração de rótulos ocultos (média de 3 seeds):
-
-| % sem rótulo | F1 baseline | F1 self-training | ROC-AUC baseline | ROC-AUC self-training |
-|---|---|---|---|---|
-| 50% | 0.849 | 0.845 | 0.960 | 0.956 |
-| 80% | 0.821 | 0.806 | 0.950 | 0.949 |
-| 90% | 0.807 | 0.788 | 0.943 | 0.934 |
-| 95% | 0.747 | 0.757 | 0.936 | 0.925 |
-| 98% | 0.695 | 0.623 | 0.922 | 0.854 |
-
-**Conclusão:** neste dataset, o self-training **empata** com o baseline e **piora** quando os rótulos são extremamente escassos (98%). Isso é coerente com a teoria:
-
-- Métodos semi-supervisionados dependem da *hipótese de cluster* (pontos próximos tendem a ter a mesma classe). O `make_classification` não garante essa estrutura.
-- Com pouquíssimos rótulos, o modelo inicial erra mais, e seus **pseudo-rótulos errados se propagam** (*confirmation bias*), principalmente na classe minoritária.
-
-> [!TIP]
-> Em um cenário real, eu manteria o pipeline que treina **os dois** modelos e só promoveria o self-training se ele superasse o baseline em um conjunto de validação. Por isso as duas métricas são registradas nos metadados.
+- **CI no GitHub Actions:** lint, testes em duas versões do Python, build da imagem e teste do contêiner rodando de verdade.
+- **Testes de contrato:** além das rotas, os testes garantem que as features do treino batem com o schema da API e que um modelo incompatível é recusado.
+- **Docker multi-stage:** o primeiro estágio treina o modelo; a imagem final só tem o necessário para servir, roda com usuário sem privilégios e tem `HEALTHCHECK`.
+- **Fluxo de trabalho:** git-flow (`feature/*` → `develop` → PR para `main`).
 
 ---
 
-## 🧭 Decisões técnicas
+## Stack
 
-| Decisão | Motivo |
+| Camada | Tecnologias |
 |---|---|
-| **Treino separado da inferência** | A API nunca treina: carrega um artefato pronto no startup, sobe rápido e não consome CPU com treino. |
-| **Metadados junto do modelo** | `metadata.json` registra versão, features, versão do scikit-learn e métricas — rastreabilidade de qual modelo respondeu cada requisição. |
-| **Validação do contrato no startup** | Se as features do modelo divergem do schema da API, o serviço recusa o modelo em vez de responder previsões erradas silenciosamente. |
-| **Rotas `def` em vez de `async def`** | A inferência é CPU-bound. Em `async def` ela bloquearia o event loop; com `def`, o FastAPI a executa em um threadpool. |
-| **`n_jobs=1` no modelo servido** | Paralelismo acelera o treino, mas em inferência de uma linha o overhead de threads domina: **p50 caiu de ~29 ms para ~8,6 ms** (3,4× mais rápido). |
-| **Probabilidade + limiar configurável** | Em detecção de anomalias o custo de falso negativo ≠ falso positivo. O limiar pode ser ajustado por variável de ambiente sem retreinar. |
-| **Endpoint em lote vetorizado** | Uma chamada `predict_proba` para N linhas: 1.000 leituras em ~15 ms, contra ~8,6 s se fossem 1.000 requisições individuais. |
-| **`class_weight="balanced"`** | Compensa o desbalanceamento (15% de anomalias) sem reamostrar os dados. |
-| **Artefatos fora do Git** | Binários de modelo não são versionados; são reproduzíveis (`random_state` fixo) e gerados no build do Docker e no CI. |
-| **Application factory (`create_app`)** | Permite que os testes criem a API com configurações diferentes (ex.: sem modelo, limite de lote menor). |
-| **Docker multi-stage, usuário não-root** | A imagem final só contém o necessário para servir, roda sem privilégios e tem `HEALTHCHECK`. |
+| **Machine Learning** | ![scikit-learn](https://img.shields.io/badge/scikit--learn_1.9-59636e?logo=scikitlearn&logoColor=white) ![NumPy](https://img.shields.io/badge/NumPy-59636e?logo=numpy&logoColor=white) ![joblib](https://img.shields.io/badge/joblib-59636e) |
+| **API** | ![Python](https://img.shields.io/badge/Python_3.12+-59636e?logo=python&logoColor=white) ![FastAPI](https://img.shields.io/badge/FastAPI-59636e?logo=fastapi&logoColor=white) ![Pydantic](https://img.shields.io/badge/Pydantic_2-59636e?logo=pydantic&logoColor=white) ![Uvicorn](https://img.shields.io/badge/Uvicorn-59636e) |
+| **Infraestrutura** | ![Docker](https://img.shields.io/badge/Docker-59636e?logo=docker&logoColor=white) ![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-59636e?logo=githubactions&logoColor=white) |
+| **Qualidade** | ![pytest](https://img.shields.io/badge/pytest-59636e?logo=pytest&logoColor=white) ![Ruff](https://img.shields.io/badge/Ruff-59636e?logo=ruff&logoColor=white) |
 
 ---
 
-## 🗺 Próximos passos
+## Como executar
 
+**Pré-requisitos:** Docker Desktop **ou** Python 3.12+, e Git.
+
+**Com Docker** (o modelo é treinado durante o build):
+
+```bash
+git clone https://github.com/MarieleV/scikit-learn-inference-service.git
+cd scikit-learn-inference-service
+docker build -t ml-inference-service .
+docker run -p 8000:8000 ml-inference-service
+```
+
+**Localmente:**
+
+```bash
+python -m venv .venv
+source .venv/bin/activate          # PowerShell: .\.venv\Scripts\Activate.ps1
+pip install -r requirements-dev.txt
+python -m training.train           # gera models/model.joblib e models/metadata.json
+uvicorn app.main:app --reload
+```
+
+| Serviço | Endereço |
+|---|---|
+| API | <http://localhost:8000> |
+| Documentação interativa (Swagger) | <http://localhost:8000/docs> |
+| Saúde do serviço | <http://localhost:8000/health> |
+
+<details>
+<summary><b>Testes, lint e experimento</b></summary>
+<br/>
+
+```bash
+pytest -v                               # 23 testes
+ruff check . && ruff format --check .   # lint e formatação, igual ao CI
+python -m training.experiment           # self-training × baseline por % de rótulos
+```
+
+</details>
+
+<details>
+<summary><b>Variáveis de ambiente</b></summary>
+<br/>
+
+| Variável | Padrão | Descrição |
+|---|---|---|
+| `MODEL_DIR` | `models` | Pasta com `model.joblib` e `metadata.json` |
+| `ANOMALY_THRESHOLD` | `0.5` | Probabilidade mínima para classificar como anomalia |
+| `MAX_BATCH_SIZE` | `1000` | Máximo de leituras por requisição em lote |
+| `LOG_LEVEL` | `INFO` | Nível de log |
+
+</details>
+
+---
+
+## Estrutura do repositório
+
+```text
+scikit-learn-inference-service/
+├── app/               API FastAPI: rotas, carga do modelo, schemas e configuração
+├── training/          Pipeline de treino e experimento self-training × baseline
+├── tests/             Testes da API, do contrato e do treino (pytest)
+├── models/            Artefatos gerados pelo treino (não versionados)
+├── .github/workflows/ Pipeline de CI
+├── Dockerfile         Build multi-stage: treina e serve
+└── pyproject.toml     Configuração do ruff e do pytest
+```
+
+---
+
+## Roadmap
+
+- [x] Pipeline de treino com baseline, métricas e metadados
+- [x] API com predição individual e em lote, health check e versionamento
+- [x] Testes, lint, Docker e CI
 - [ ] Promoção automática do modelo (*champion/challenger*) com conjunto de validação
-- [ ] Calibração de probabilidades (`CalibratedClassifierCV`) e escolha do limiar pela curva precision-recall
+- [ ] Calibração de probabilidades e escolha do limiar pela curva precision-recall
 - [ ] Monitoramento de *data drift* nas features recebidas
-- [ ] Métricas Prometheus (latência, volume de predições, taxa de anomalias)
+- [ ] Métricas Prometheus (latência, volume e taxa de anomalias)
 - [ ] Registro de modelos com MLflow
 
 ---
 
 <div align="center">
 
-Desenvolvido por **Mariele Vieira da Silva** · [GitHub](https://github.com/MarieleV)
+**Mariele Vieira da Silva**<br/>
+<sub>Engenharia de Software · Católica SC</sub>
+
+<a href="https://www.linkedin.com/in/mariele-vieira"><img src="https://img.shields.io/badge/LinkedIn-0969da?style=flat&logo=linkedin&logoColor=white" alt="LinkedIn" /></a>
+<a href="https://github.com/MarieleV"><img src="https://img.shields.io/badge/GitHub-59636e?style=flat&logo=github&logoColor=white" alt="GitHub" /></a>
+<a href="mailto:silvamariele797@gmail.com"><img src="https://img.shields.io/badge/E--mail-59636e?style=flat&logo=gmail&logoColor=white" alt="E-mail" /></a>
 
 </div>
