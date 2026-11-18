@@ -13,7 +13,7 @@
 <img src="https://img.shields.io/badge/python-3.12_·_3.13-59636e" alt="Python" />
 <a href="./LICENSE"><img src="https://img.shields.io/badge/licença-MIT-59636e" alt="Licença MIT" /></a>
 
-<sub>Projeto de portfólio · Machine Learning em produção · Engenharia de Software</sub>
+<sub>Machine Learning em produção · Engenharia de Software</sub>
 
 </div>
 
