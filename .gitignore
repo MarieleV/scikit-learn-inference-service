@@ -1,11 +1,20 @@
-# Ambientes Virtuais
+# Ambientes virtuais
 venv/
+.venv/
 env/
 
-# Cache do Python
+# Cache do Python e das ferramentas
 __pycache__/
 *.pyc
+.pytest_cache/
+.ruff_cache/
 
-# Ficheiros do Sistema Operativo
+# Artefatos de modelo (gerados por `python -m training.train`, não versionados)
+models/*
+!models/.gitkeep
+
+# Sistema operacional / IDE
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
